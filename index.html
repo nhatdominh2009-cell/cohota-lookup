@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cohota Lookup — Tra cứu câu hỏi</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--ink:#172033;--muted:#667085;--line:#e3e8f0;--blue:#315efb;--blue2:#eaf0ff;--green:#087443;--red:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line);padding:20px max(18px,calc((100% - 1100px)/2))}
+h1{font-size:23px;margin:0 0 4px}header p{margin:0;color:var(--muted)}
+main{max-width:1100px;margin:22px auto;padding:0 16px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 2px 8px #17203308}
+h2{font-size:17px;margin:0 0 10px}.hint{color:var(--muted);font-size:13px;margin:5px 0 12px}
+textarea,input,select{width:100%;border:1px solid #cfd6e4;border-radius:9px;padding:11px 12px;font:inherit;background:#fff;color:var(--ink)}
+textarea{min-height:210px;resize:vertical}input:focus,textarea:focus{outline:3px solid #315efb20;border-color:var(--blue)}
+button{border:0;border-radius:9px;padding:10px 14px;font:600 14px system-ui;cursor:pointer;background:var(--blue);color:#fff}
+button.secondary{background:#eef1f7;color:#27334a}button.danger{background:#fff0ef;color:var(--red)}button:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.pill{background:#f0f3f8;border-radius:999px;padding:5px 10px;font-size:12px;color:#485467}
+.results{display:grid;gap:12px;margin-top:14px}.question{border:1px solid var(--line);border-radius:12px;padding:15px;background:#fff}.qtop{display:flex;justify-content:space-between;gap:10px;align-items:start}.qtitle{font-weight:700;white-space:pre-wrap}.source{color:var(--muted);font-size:12px;white-space:nowrap}
+.options{display:grid;gap:7px;margin:12px 0}.option{border:1px solid #e5e9f1;border-radius:8px;padding:8px 10px;white-space:pre-wrap}.option.correct{background:#eaf8f0;border-color:#91d5b4;color:#075b35;font-weight:600}
+.answer{font-size:13px;background:#f0faf4;color:#075b35;border-radius:8px;padding:8px 10px;margin-top:8px}.empty{padding:26px;text-align:center;color:var(--muted);border:1px dashed #cfd6e4;border-radius:10px}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:0 16px 24px}
+@media(max-width:650px){.toolbar{grid-template-columns:1fr}header{padding:18px}.card{padding:14px}}
+</style>
+</head>
+<body>
+<header><h1>Cohota Lookup</h1><p>Lưu câu hỏi và tra cứu đáp án bằng từ khóa — không phụ thuộc thứ tự câu.</p></header>
+<main>
+<section class="card">
+<h2>1. Nhập câu hỏi và đáp án</h2>
+<p class="hint">Dán văn bản đã sao chép từ kết quả Cohota. Có thể dán nhiều câu cùng lúc. Dữ liệu được lưu trong trình duyệt trên thiết bị này.</p>
+<textarea id="importText" placeholder="Ví dụ:
+Câu 1. Nhiệt độ nóng chảy của nước đá ở áp suất thường là bao nhiêu?
+A. 0°C
+B. 10°C
+C. 50°C
+D. 100°C
+Đáp án đúng: A
+
+Câu 2. ...
+A. ...
+B. ...
+C. ...
+D. ...
+Đáp án: C"></textarea>
+<div class="actions">
+<button id="parseBtn">Phân tích và lưu câu hỏi</button>
+<button class="secondary" id="appendBtn">Thêm vào ngân hàng hiện có</button>
+<button class="secondary" id="sampleBtn">Dùng dữ liệu mẫu</button>
+</div>
+<p class="hint" id="parseMessage" role="status"></p>
+</section>
+<section class="card">
+<div class="toolbar"><div><h2>2. Tra cứu câu hỏi</h2><p class="hint" style="margin-bottom:0">Gõ một từ hoặc cụm từ trong đề, phương án hoặc đáp án.</p></div><button class="secondary" id="exportBtn">Xuất bản sao lưu</button></div>
+<div style="margin-top:12px"><input id="search" placeholder="Ví dụ: nhiệt độ, mặt cầu, tác giả..." autocomplete="off"></div>
+<div class="stats"><span class="pill" id="totalPill">0 câu đã lưu</span><span class="pill" id="foundPill">0 kết quả</span></div>
+<div id="results" class="results"><div class="empty">Chưa có dữ liệu. Hãy dán câu hỏi ở phần trên.</div></div>
+<div class="actions"><button class="secondary" id="importFileBtn">Khôi phục từ bản sao lưu</button><button class="danger" id="clearBtn">Xóa toàn bộ dữ liệu</button><input id="fileInput" type="file" accept=".json,application/json" hidden></div>
+</section>
+<section class="card">
+<h2>Cách dán dữ liệu để nhận diện chính xác</h2>
+<ol>
+<li>Mỗi câu nên có dòng bắt đầu bằng <b>Câu 1</b>, <b>Câu 2</b>… hoặc số thứ tự tương tự.</li>
+<li>Mỗi phương án nên bắt đầu bằng <b>A.</b>, <b>B.</b>, <b>C.</b>, <b>D.</b> (có thể dùng A), B), …).</li>
+<li>Đáp án nên có dạng <b>Đáp án: B</b>, <b>Đáp án đúng: B</b> hoặc <b>Đáp án là B</b>.</li>
+<li>Nếu kết quả Cohota có định dạng khác, vẫn có thể lưu, nhưng hãy kiểm tra lại câu đã phân tích và đáp án.</li>
+</ol>
+<p class="hint">Lưu ý: ứng dụng không tự truy cập Cohota. Bạn tự dán phần câu hỏi và đáp án vào đây. Nên xuất bản sao lưu để tránh mất dữ liệu khi xóa dữ liệu trình duyệt.</p>
+</section>
+</main>
+<footer>Chạy trực tiếp trên trình duyệt · Không gửi dữ liệu lên máy chủ</footer>
+<script>
+const $=id=>document.getElementById(id);
+const KEY='cohota_lookup_questions_v1';
+let questions=[];
+function norm(s){return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();}
+function load(){try{questions=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(questions))questions=[];}catch(e){questions=[];}render();}
+function save(){localStorage.setItem(KEY,JSON.stringify(questions));render();}
+function parseText(raw){
+  let t=raw.replace(/\r/g,'').replace(/[ \t]+\n/g,'\n').trim();
+  if(!t)return [];
+  // Split on common question headers; keep the header as part of the question.
+  const lines=t.split('\n'); let blocks=[], current=[];
+  const startRe=/^\s*(?:(?:câu|question|q)\s*#?\s*\d+|(?:\d{1,3})[.)]\s+)/i;
+  for(const line of lines){
+    if(startRe.test(line.trim()) && current.some(x=>x.trim())){blocks.push(current.join('\n').trim());current=[];}
+    current.push(line);
+  }
+  if(current.some(x=>x.trim()))blocks.push(current.join('\n').trim());
+  // If no detectable headers, split at blank-line groups.
+  if(blocks.length===1 && !startRe.test(lines.find(x=>x.trim())||'')){
+    const groups=t.split(/\n\s*\n+/).map(x=>x.trim()).filter(Boolean);
+    if(groups.length>1)blocks=groups;
+  }
+  return blocks.map((block,i)=>{
+    const ls=block.split('\n').map(x=>x.trim()).filter(Boolean);
+    let label=(ls[0].match(/^(?:(?:câu|question|q)\s*#?\s*\d+|(?:\d{1,3})[.)])/i)||[])[0]||('Câu '+(i+1));
+    const answerRe=/^\s*(?:đáp\s*án(?:\s*(?:đúng|là))?|answer|correct\s*answer)\s*[:：\-]?\s*(.*)$/i;
+    let answer='', questionLines=[], opts={A:'',B:'',C:'',D:''}, currentOpt='';
+    for(let line of ls){
+      const am=line.match(answerRe);
+      if(am){answer=am[1].trim();currentOpt='';continue;}
+      const om=line.match(/^\s*([A-D])\s*[\.\):\-]\s*(.*)$/i);
+      if(om){currentOpt=om[1].toUpperCase();opts[currentOpt]=om[2].trim();continue;}
+      if(currentOpt){opts[currentOpt]+=(opts[currentOpt]?' ':'')+line;}
+      else questionLines.push(line);
+    }
+    let q=questionLines.join('\n').replace(/^(?:(?:câu|question|q)\s*#?\s*\d+|(?:\d{1,3})[.)])\s*/i,'').trim();
+    if(!q)q=block;
+    // Normalize answer labels such as "B. ..." or "Đáp án đúng là B"
+    const answerLetter=(answer.match(/\b([A-D])\b/i)||[])[1];
+    if(answerLetter)answer=answerLetter.toUpperCase();
+    return {id:crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+i,label,question:q,options:opts,answer,raw:block};
+  }).filter(q=>q.question||q.raw);
+}
+function render(){
+  const term=norm($('search').value.trim());
+  const shown=questions.filter(q=>!term||norm([q.question,q.label,...Object.values(q.options),q.answer,q.raw].join(' ')).includes(term));
+  $('totalPill').textContent=questions.length+' câu đã lưu';
+  $('foundPill').textContent=shown.length+' kết quả';
+  const root=$('results');root.innerHTML='';
+  if(!shown.length){root.innerHTML='<div class="empty">'+(questions.length?'Không tìm thấy câu nào chứa từ khóa này. Thử từ ngắn hơn.':'Chưa có dữ liệu. Hãy dán câu hỏi ở phần trên.')+'</div>';return;}
+  shown.forEach((q,i)=>{
+    const el=document.createElement('article');el.className='question';
+    const top=document.createElement('div');top.className='qtop';
+    const title=document.createElement('div');title.className='qtitle';title.textContent=(q.label||'Câu hỏi')+'. '+q.question;
+    const source=document.createElement('span');source.className='source';source.textContent='Kết quả '+(i+1);
+    top.append(title,source);el.append(top);
+    const opts=document.createElement('div');opts.className='options';
+    const letters=['A','B','C','D'].filter(k=>q.options[k]);
+    letters.forEach(k=>{const op=document.createElement('div');op.className='option'+(q.answer===k?' correct':'');op.textContent=k+'. '+q.options[k];opts.append(op);});
+    if(letters.length)el.append(opts);
+    const ans=document.createElement('div');ans.className='answer';ans.textContent='Đáp án đúng: '+(q.answer||'Chưa nhận diện được — hãy kiểm tra văn bản gốc');
+    el.append(ans);
+    const actions=document.createElement('div');actions.className='actions';
+    const copy=document.createElement('button');copy.className='secondary';copy.textContent='Sao chép câu này';copy.onclick=()=>{const s=q.label+'. '+q.question+'\n'+letters.map(k=>k+'. '+q.options[k]).join('\n')+'\nĐáp án: '+q.answer;navigator.clipboard?.writeText(s);copy.textContent='Đã sao chép';setTimeout(()=>copy.textContent='Sao chép câu này',1200);};
+    const del=document.createElement('button');del.className='danger';del.textContent='Xóa câu';del.onclick=()=>{questions=questions.filter(x=>x.id!==q.id);save();};
+    actions.append(copy,del);el.append(actions);root.append(el);
+  });
+}
+function ingest(append){
+  const parsed=parseText($('importText').value);
+  if(!parsed.length){$('parseMessage').textContent='Chưa nhận diện được câu nào. Hãy kiểm tra văn bản đã dán.';return;}
+  if(append)questions.push(...parsed);else questions=parsed;
+  save();$('parseMessage').textContent='Đã nhận diện '+parsed.length+' câu. Hãy kiểm tra đáp án, nhất là các câu có định dạng đặc biệt.';
+  $('importText').value='';$('search').value='';
+}
+$('parseBtn').onclick=()=>ingest(false);
+$('appendBtn').onclick=()=>ingest(true);
+$('search').addEventListener('input',render);
+$('sampleBtn').onclick=()=>{$('importText').value='Câu 1. Nước đá tan ở nhiệt độ bao nhiêu độ C trong điều kiện thường?\nA. 0°C\nB. 10°C\nC. 50°C\nD. 100°C\nĐáp án đúng: A\n\nCâu 2. Hành tinh nào gần Mặt Trời nhất?\nA. Trái Đất\nB. Sao Kim\nC. Sao Thủy\nD. Sao Hỏa\nĐáp án: C';};
+$('clearBtn').onclick=()=>{if(confirm('Bạn chắc chắn muốn xóa toàn bộ câu hỏi đã lưu trên trình duyệt này?')){questions=[];save();$('parseMessage').textContent='Đã xóa dữ liệu.';}};
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(questions,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cohota-questions-backup.json';a.click();URL.revokeObjectURL(a.href);};
+$('importFileBtn').onclick=()=>$('fileInput').click();
+$('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data))throw Error();questions=data;save();$('parseMessage').textContent='Đã khôi phục '+questions.length+' câu.';}catch(err){alert('File không đúng định dạng bản sao lưu.');}e.target.value='';};
+load();
+</script>
+</body></html>
